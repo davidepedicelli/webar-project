@@ -13,8 +13,7 @@
     device-orientation-permission-ui="enabled: false" mindar-image="warmupTolerance: 1">
 
     <a-assets>
-      <a-asset-item id="avatarModelA" src="./models/characterA.glb"></a-asset-item>
-      <a-asset-item id="avatarModelB" src="./models/characterB.glb"></a-asset-item>
+      <a-asset-item id="avatarModelA" src="./models/characterC.glb"></a-asset-item>
     </a-assets>
 
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
@@ -22,58 +21,216 @@
     <a-entity id="marker" mindar-image-target="targetIndex: 0">
 
       <!-- Personaggio A -->
-      <a-entity id="modelAWrapper" position="-0.5 0 0">
-        <a-gltf-model src="#avatarModelA" rotation="40 90 90" scale="0.4 0.4 0.4"
-          animation-mixer="loop: repeat"></a-gltf-model>
-
-        <!-- Nuvoletta dialogo A: figlia del modello -->
-        <a-entity id="dialogA" position="0 0 0.8" rotation="90 0 0"> <!-- y=1.6 sopra la testa -->
-          <a-text value="" color="#fff" align="center" width="1" position="0 0 0.01"></a-text>
+      <a-entity id="modelAWrapper" position="0 0 0">
+        <!-- 👇 niente “>” alla fine e aggiungi un id per selezionarlo -->
+        <a-gltf-model id="avatarA" src="#avatarModelA" rotation="90 0 0" scale="0.4 0.4 0.4"
+          animation-mixer="clip: Walking; loop: repeat"></a-gltf-model>
+        <a-entity id="dialogA" position="0 0 1" rotation="90" look-at="#camera">
+          <a-text id="text3D" value="" style="border: 0.2em;" color="#fff" width="1" align="center" shader="msdf"
+            color="#ffffff" material="emissive: #ffffaa; emissiveIntensity: 0.8">
+          </a-text>
+        </a-entity>
+        <a-entity id="cocktails" position="0 -0.6 1" rotation="90" look-at="#camera">
+          <!-- i <a-text> verranno creati via JS -->
         </a-entity>
       </a-entity>
-
-      <!-- Personaggio B -->
-      <a-entity id="modelBWrapper" position="0.5 0 0">
-        <a-gltf-model src="#avatarModelB" rotation="40 -90 -90" scale="0.4 0.4 0.4"
-          animation-mixer="loop: repeat"></a-gltf-model>
-
-        <!-- Nuvoletta dialogo B: figlia del modello -->
-        <a-entity id="dialogB" position="0 0 0.8" rotation="90 0 0"> <!-- y=1.6 sopra la testa -->
-          <a-text value="" color="#fff" align="center" width="1" position="0 0 0.01"></a-text>
-        </a-entity>
-      </a-entity>
-
 
       <!-- Luci -->
       <a-entity light="type: directional; color: #fff; intensity: 1" position="0 1 1"></a-entity>
       <a-entity light="type: ambient; color: #fff; intensity: 0.5"></a-entity>
 
     </a-entity>
+    <div id="cocktailButtons" style="display:none;">
+      <button class="cocktail-btn" data-name="Mojito">Mojito</button>
+      <button class="cocktail-btn" data-name="Negroni">Negroni</button>
+      <button class="cocktail-btn" data-name="Pina Colada">Pina Colada</button>
+      <button class="cocktail-btn" data-name="Margarita">Margarita</button>
+    </div>
   </a-scene>
 
+
+  <button id="nextBtn" class="avanti-btn" style="
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  z-index: 999;
+  padding: 10px 20px;
+  font-size: 18px;
+">Avanti</button>
+
+
   <script>
-    const marker = document.querySelector('#marker');
-    const dialogA = document.querySelector('#dialogA a-text');
-    const dialogB = document.querySelector('#dialogB a-text');
+    const wrapper = document.querySelector('#modelAWrapper');
+    const avatar = document.querySelector('#avatarA');
+    const textEl = document.querySelector('#text3D');
+    const buttonsDiv = document.getElementById('cocktailButtons');
 
-    marker.addEventListener('targetFound', () => {
+    let moving = false;
+    let speed = 0.001;
 
-      // Primo personaggio parla
-      const utterA = new SpeechSynthesisUtterance("Ciao! Benvenuto al nostro ristorante.");
-      utterA.onstart = () => { dialogA.setAttribute('value', utterA.text); }
-      utterA.onend = () => { dialogA.setAttribute('value', ""); }
+    function typeWriter(text, speed = 80) {
+      return new Promise(resolve => {
+        let index = 0;
+        textEl.setAttribute('value', '');
+        function step() {
+          if (index < text.length) {
+            textEl.setAttribute('value', textEl.getAttribute('value') + text[index]);
+            index++;
+            setTimeout(step, speed);
+          } else {
+            resolve();
+          }
+        }
+        step();
+      });
+    }
 
-      // Secondo personaggio parla dopo A
-      const utterB = new SpeechSynthesisUtterance("Ciao! Vuoi vedere il menu di oggi?");
-      utterB.onstart = () => { dialogB.setAttribute('value', utterB.text); }
-      utterB.onend = () => { dialogB.setAttribute('value', ""); }
+    function moveForward() {
+      if (moving) {
+        let pos = wrapper.getAttribute('position');
+        pos.z -= speed;
+        wrapper.setAttribute('position', pos);
+        requestAnimationFrame(moveForward);
+      }
+    }
 
-      // Sequenza con onend
-      utterA.onend = () => { speechSynthesis.speak(utterB); }
+    function sleep(ms) {
+      return new Promise(r => setTimeout(r, ms));
+    }
 
-      speechSynthesis.speak(utterA);
+    // mostra/nasconde lista cocktail
+    function showCocktails() {
+      buttonsDiv.style.display = 'flex';
+    }
+    function hideCocktails() {
+      buttonsDiv.style.display = 'none';
+    }
+
+    // sequenza animazioni UNA VOLTA
+    async function playSequence() {
+      // reset
+      wrapper.setAttribute('position', { x: 0, y: 0, z: 0 });
+      textEl.setAttribute('value', '');
+      hideCocktails();
+
+      // Step 1: Walking
+      moving = true;
+      avatar.setAttribute('animation-mixer', 'clip: Walking; loop: repeat');
+      moveForward();
+      await sleep(3000);
+
+      // Step 2: Waving
+      moving = false;
+      avatar.setAttribute('animation-mixer', 'clip: Wawing; loop: once');
+      await typeWriter("Ciaooo, benvenuto!!!", 100);
+      await sleep(1000);
+
+      // Step 3: Talking
+      avatar.setAttribute('animation-mixer', 'clip: Talking; loop: once');
+      await typeWriter("Seguimi per vedere i nostri cocktail");
+      await sleep(1000);
+
+      // Step 4: Pointing
+      avatar.setAttribute('animation-mixer', 'clip: Pointing; loop: once');
+      await typeWriter("Scegli il tuo cocktail!!", 50);
+      await sleep(1000);
+
+
+      // ora fermo e mostro i bottoni
+      showCocktails();
+
+      avatar.setAttribute('animation-mixer', 'clip: Dance; loop: repeat');
+      await sleep(1000);
+    }
+
+    // click sui bottoni cocktail
+    document.querySelectorAll('.cocktail-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const name = btn.dataset.name;
+        console.log('Hai scelto', name);
+        // nascondi lista e riparti
+        hideCocktails();
+        playSequence();
+      });
     });
+
+    // avvio la prima volta
+    playSequence();
   </script>
+
+
+
+
+  <style>
+    #cocktailButtons {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+      z-index: 9999;
+      width: 220px;
+    }
+
+    .cocktail-btn {
+      padding: 14px 20px;
+      font-size: 18px;
+      font-family: 'Arial', sans-serif;
+      font-weight: 600;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      color: #fff;
+      background: linear-gradient(135deg, #ffcc33, #ff9900);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+      transition: all 0.2s ease-in-out;
+    }
+
+    .avanti-btn {
+      padding: 14px 20px;
+      font-size: 18px;
+      font-family: 'Arial', sans-serif;
+      font-weight: 600;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      color: #fff;
+      background: linear-gradient(135deg, #3d33ff, #0040ff);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+      transition: all 0.2s ease-in-out;
+    }
+
+    .cocktail-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 15px rgba(0, 0, 0, 0.35);
+      background: linear-gradient(135deg, #ffdd55, #ffbb00);
+    }
+
+    .cocktail-btn:active {
+      transform: translateY(0);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+    }
+
+    select {
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      width: 200px;
+    }
+
+    select:focus {
+      border-color: #007bff;
+      outline: none;
+    }
+  </style>
+
+
+
+
+
 
 </body>
 
